@@ -1,0 +1,113 @@
+module bmp280_init_controller(
+    input wire clk,
+    input wire rst,
+    input wire start_initialization,
+    output reg init_done,
+    output reg [7:0] chip_id_out,
+    
+    output reg i2c_enable,
+    output reg [7:0] i2c_reg_addr,
+    output reg [7:0] i2c_wdata,
+    output reg i2c_rw,
+    input wire [7:0] i2c_data_in,
+    input wire i2c_ready
+);
+    localparam FSM_IDLE=0, FSM_READ_ID_START=1, FSM_READ_ID_WAIT=2, FSM_READ_CALIB_START=3, FSM_READ_CALIB_WAIT=4, FSM_WRITE_CONFIG_START=5, FSM_WRITE_CONFIG_WAIT=6, FSM_DELAY=7, FSM_DONE=8;
+
+    reg [3:0] state;
+    reg [4:0] calib_offset;
+    reg [20:0] delay_counter;
+
+    always @(posedge clk or posedge rst) begin
+        if (rst) begin
+            state <= FSM_IDLE;
+            i2c_enable <= 1'b0;
+            init_done <= 1'b0;
+            calib_offset <= 0;
+            delay_counter <= 0;
+            chip_id_out <= 8'h00;
+        end else begin
+            if (i2c_enable) begin
+                i2c_enable <= 1'b0;
+            end
+
+            case (state)
+                FSM_IDLE: begin
+                    if (start_initialization) begin
+                        calib_offset <= 0;
+                        delay_counter <= 0;
+                        state <= FSM_READ_ID_START;
+                    end
+                end
+                
+                FSM_READ_ID_START: begin
+                    if (i2c_ready) begin
+                        i2c_reg_addr <= 8'hD0;
+                        i2c_rw <= 1'b1;
+                        i2c_enable <= 1'b1;
+                        state <= FSM_READ_ID_WAIT;
+                    end
+                end
+                
+                FSM_READ_ID_WAIT: begin
+                    if (i2c_ready) begin
+                        chip_id_out <= i2c_data_in;
+                        state <= FSM_READ_CALIB_START;
+                    end
+                end
+                
+                FSM_READ_CALIB_START: begin
+                    if (i2c_ready) begin
+                        i2c_reg_addr <= 8'h88 + calib_offset;
+                        i2c_rw <= 1'b1;
+                        i2c_enable <= 1'b1;
+                        state <= FSM_READ_CALIB_WAIT;
+                    end
+                end
+                
+                FSM_READ_CALIB_WAIT: begin
+                    if (i2c_ready) begin
+                        if (calib_offset == 23) begin
+                            state <= FSM_WRITE_CONFIG_START;
+                        end else begin
+                            calib_offset <= calib_offset + 1;
+                            state <= FSM_READ_CALIB_START;
+                        end
+                    end
+                end
+                
+                FSM_WRITE_CONFIG_START: begin
+                    if (i2c_ready) begin
+                        i2c_reg_addr <= 8'hF4;
+                        i2c_wdata <= 8'h27;
+                        i2c_rw <= 1'b0;
+                        i2c_enable <= 1'b1;
+                        state <= FSM_WRITE_CONFIG_WAIT;
+                    end
+                end
+                
+                FSM_WRITE_CONFIG_WAIT: begin
+                    if (i2c_ready) begin
+                        state <= FSM_DELAY;
+                    end
+                end
+                
+                FSM_DELAY: begin
+                    if (delay_counter == 500_000) begin
+                        state <= FSM_DONE;
+                    end else begin
+                        delay_counter <= delay_counter + 1;
+                    end
+                end
+                
+                FSM_DONE: begin
+                    init_done <= 1'b1;
+                end
+
+                default: begin
+                    state <= FSM_IDLE;
+                end
+            endcase
+        end
+    end
+endmodule

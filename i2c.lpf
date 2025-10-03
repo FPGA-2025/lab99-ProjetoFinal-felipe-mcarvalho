@@ -1,0 +1,20 @@
+BLOCK RESETPATHS;
+BLOCK ASYNCPATHS;
+
+# Clock 25 MHz
+LOCATE COMP "sys_clk" SITE "P3";
+FREQUENCY PORT "sys_clk" 25 MHZ;
+IOBUF PORT "sys_clk" IO_TYPE = LVCMOS33;
+
+# Reset (ativo alto)
+LOCATE COMP "sys_rst" SITE "E1";
+IOBUF PORT "sys_rst" IO_TYPE = LVCMOS33;
+
+
+# I2C SDA/SCL
+LOCATE COMP "i2c_sda" SITE "J20"; # 
+LOCATE COMP "i2c_scl" SITE "L18"; # 
+IOBUF PORT "i2c_sda" IO_TYPE = LVCMOS33;
+IOBUF PORT "i2c_scl" IO_TYPE = LVCMOS33;
+
+
